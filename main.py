@@ -8,8 +8,8 @@ from typing import List, Optional, Set
 
 import pandas as pd
 
-from PySide6.QtCore import Qt, QPointF, Signal, QMimeData
-from PySide6.QtGui import QAction, QColor, QBrush, QPen, QDrag, QPainter
+from PySide6.QtCore import Qt, QPointF, Signal, QMimeData, QRectF
+from PySide6.QtGui import QAction, QColor, QBrush, QPen, QDrag, QPainter, QWheelEvent
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -52,6 +52,7 @@ DB_PATH = DATA_DIR / "parts.db"
 TEMPLATE_PATH = DATA_DIR / "parts_upload_template.xlsx"
 RAW_EXPORT_DEFAULT = DATA_DIR / "parts_raw_data.xlsx"
 CANVAS_SAVE_PATH = DATA_DIR / "breaker_canvas_layout.json"
+CANVAS_EXPORT_PATH = DATA_DIR / "breaker_canvas_layout.xlsx"
 
 DATA_DIR.mkdir(exist_ok=True)
 LOG_DIR.mkdir(exist_ok=True)
@@ -609,10 +610,14 @@ class BreakerSettingsDialog(QDialog):
         self.setWindowTitle(f"차단기 설정 - {breaker_name}")
         layout = QVBoxLayout(self)
         form = QFormLayout()
+
+        self.name_edit = QLineEdit(breaker_name)
         self.safety_spin = QDoubleSpinBox()
         self.safety_spin.setRange(1.0, 5.0)
         self.safety_spin.setSingleStep(0.05)
         self.safety_spin.setValue(safety_factor)
+
+        form.addRow("차단기 이름", self.name_edit)
         form.addRow("안전율", self.safety_spin)
         layout.addLayout(form)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -620,13 +625,22 @@ class BreakerSettingsDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
+    def values(self) -> tuple[str, float]:
+        return self.name_edit.text().strip(), self.safety_spin.value()
+
 
 class LoadPartItem(QGraphicsRectItem):
-    WIDTH = 200
-    HEIGHT = 68
+    DEFAULT_WIDTH = 200
+    DEFAULT_HEIGHT = 68
+    MIN_WIDTH = 160
+    MIN_HEIGHT = 60
+    HANDLE_SIZE = 12
 
-    def __init__(self, scene_ref: 'BreakerCanvasScene', parent_breaker: 'BreakerItem', part_row: pd.Series, quantity: int = 1):
-        super().__init__(0, 0, self.WIDTH, self.HEIGHT)
+    def __init__(self, scene_ref: 'BreakerCanvasScene', parent_breaker: 'BreakerItem', part_row: pd.Series,
+                 quantity: int = 1, width: float | None = None, height: float | None = None):
+        self._width = float(width or self.DEFAULT_WIDTH)
+        self._height = float(height or self.DEFAULT_HEIGHT)
+        super().__init__(0, 0, self._width, self._height)
         self.scene_ref = scene_ref
         self.parent_breaker = parent_breaker
         self.part_no = str(part_row['part_no'])
@@ -634,6 +648,9 @@ class LoadPartItem(QGraphicsRectItem):
         self.unit_current = float(part_row['current_a'])
         self.unit_power = float(part_row['power_w'])
         self.quantity = quantity
+        self._resizing = False
+        self._resize_origin = QPointF()
+        self._start_size = (self._width, self._height)
 
         self.setBrush(QBrush(QColor("#fff8ef")))
         self.setPen(QPen(QColor("#d9c2a6"), 1.2))
@@ -647,6 +664,13 @@ class LoadPartItem(QGraphicsRectItem):
         self.label.setBrush(QBrush(QColor("#4a3f35")))
         self.update_display()
 
+    def _resize_handle_rect(self) -> QRectF:
+        return QRectF(self._width - self.HANDLE_SIZE - 4, self._height - self.HANDLE_SIZE - 4,
+                      self.HANDLE_SIZE, self.HANDLE_SIZE)
+
+    def _apply_rect(self):
+        self.setRect(0, 0, self._width, self._height)
+
     def update_display(self):
         total_current = self.unit_current * self.quantity
         total_power = self.unit_power * self.quantity
@@ -655,12 +679,48 @@ class LoadPartItem(QGraphicsRectItem):
         )
         self.label.setPos(10, 8)
 
+    def paint(self, painter: QPainter, option, widget=None):
+        super().paint(painter, option, widget)
+        painter.setBrush(QBrush(QColor("#cbd5e1")))
+        painter.setPen(QPen(QColor("#94a3b8"), 1.0))
+        painter.drawRect(self._resize_handle_rect())
+
     def itemChange(self, change, value):
         if change == QGraphicsItem.ItemPositionHasChanged:
             self.scene_ref.notify_layout_changed()
             if self.parent_breaker:
                 self.parent_breaker.refresh_recursive()
         return super().itemChange(change, value)
+
+    def mousePressEvent(self, event):
+        if self._resize_handle_rect().contains(event.pos()):
+            self._resizing = True
+            self._resize_origin = event.scenePos()
+            self._start_size = (self._width, self._height)
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._resizing:
+            delta = event.scenePos() - self._resize_origin
+            self.prepareGeometryChange()
+            self._width = max(self.MIN_WIDTH, self._start_size[0] + delta.x())
+            self._height = max(self.MIN_HEIGHT, self._start_size[1] + delta.y())
+            self._apply_rect()
+            self.update_display()
+            self.scene_ref.notify_layout_changed()
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._resizing:
+            self._resizing = False
+            self.scene_ref.notify_layout_changed()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     def mouseDoubleClickEvent(self, event):
         menu = QMessageBox()
@@ -699,17 +759,24 @@ class LoadPartItem(QGraphicsRectItem):
             "quantity": self.quantity,
             "x": round(pos.x(), 2),
             "y": round(pos.y(), 2),
+            "width": round(self._width, 2),
+            "height": round(self._height, 2),
         }
 
 
 class BreakerItem(QGraphicsRectItem):
-    WIDTH = 280
-    HEIGHT = 120
+    DEFAULT_WIDTH = 280
+    DEFAULT_HEIGHT = 120
+    MIN_WIDTH = 220
+    MIN_HEIGHT = 120
+    HANDLE_SIZE = 14
 
     def __init__(self, scene_ref: 'BreakerCanvasScene', name: str, pos_x: float, pos_y: float,
                  safety_factor: float = 1.25, parent_breaker: Optional['BreakerItem'] = None,
-                 is_top_level: bool = False):
-        super().__init__(0, 0, self.WIDTH, self.HEIGHT)
+                 is_top_level: bool = False, width: float | None = None, height: float | None = None):
+        self._width = float(width or self.DEFAULT_WIDTH)
+        self._height = float(height or self.DEFAULT_HEIGHT)
+        super().__init__(0, 0, self._width, self._height)
         self.scene_ref = scene_ref
         self.name = name
         self.safety_factor = safety_factor
@@ -717,6 +784,9 @@ class BreakerItem(QGraphicsRectItem):
         self.child_breakers: List['BreakerItem'] = []
         self.load_items: List[LoadPartItem] = []
         self.is_top_level = is_top_level
+        self._resizing = False
+        self._resize_origin = QPointF()
+        self._start_size = (self._width, self._height)
 
         self.setPos(pos_x, pos_y)
         self.setBrush(QBrush(QColor("#eef4ff")))
@@ -731,22 +801,72 @@ class BreakerItem(QGraphicsRectItem):
         self.title_text.setBrush(QBrush(QColor("#334155")))
         self.summary_text = QGraphicsSimpleTextItem(self)
         self.summary_text.setBrush(QBrush(QColor("#475569")))
-        self.hint_text = QGraphicsSimpleTextItem("더블클릭: 안전율 설정", self)
+        self.hint_text = QGraphicsSimpleTextItem("더블클릭: 이름/안전율 설정", self)
         self.hint_text.setBrush(QBrush(QColor("#64748b")))
+        self._layout_text_items()
+        self.update_summary()
+
+    def _resize_handle_rect(self) -> QRectF:
+        return QRectF(self._width - self.HANDLE_SIZE - 6, self._height - self.HANDLE_SIZE - 6,
+                      self.HANDLE_SIZE, self.HANDLE_SIZE)
+
+    def _layout_text_items(self):
         self.title_text.setPos(12, 10)
         self.summary_text.setPos(12, 38)
-        self.hint_text.setPos(12, 90)
-        self.update_summary()
+        self.hint_text.setPos(12, max(90, self._height - 24))
+
+    def _apply_rect(self):
+        self.setRect(0, 0, self._width, self._height)
+        self._layout_text_items()
+
+    def paint(self, painter: QPainter, option, widget=None):
+        super().paint(painter, option, widget)
+        painter.setBrush(QBrush(QColor("#cbd5e1")))
+        painter.setPen(QPen(QColor("#94a3b8"), 1.0))
+        painter.drawRect(self._resize_handle_rect())
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.ItemPositionHasChanged:
             self.scene_ref.notify_layout_changed()
         return super().itemChange(change, value)
 
+    def mousePressEvent(self, event):
+        if self._resize_handle_rect().contains(event.pos()):
+            self._resizing = True
+            self._resize_origin = event.scenePos()
+            self._start_size = (self._width, self._height)
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._resizing:
+            delta = event.scenePos() - self._resize_origin
+            self.prepareGeometryChange()
+            self._width = max(self.MIN_WIDTH, self._start_size[0] + delta.x())
+            self._height = max(self.MIN_HEIGHT, self._start_size[1] + delta.y())
+            self._apply_rect()
+            self.update_summary()
+            self.scene_ref.notify_layout_changed()
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._resizing:
+            self._resizing = False
+            self.scene_ref.notify_layout_changed()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
     def mouseDoubleClickEvent(self, event):
         dialog = BreakerSettingsDialog(self.name, self.safety_factor)
         if dialog.exec() == QDialog.Accepted:
-            self.safety_factor = dialog.safety_spin.value()
+            new_name, new_safety_factor = dialog.values()
+            if new_name:
+                self.name = new_name
+            self.safety_factor = new_safety_factor
             self.refresh_recursive()
             self.scene_ref.notify_layout_changed()
         super().mouseDoubleClickEvent(event)
@@ -778,12 +898,13 @@ class BreakerItem(QGraphicsRectItem):
             new_parent.child_breakers.append(self)
         self.refresh_recursive()
 
-    def add_part(self, part_row: pd.Series, quantity: int = 1, drop_pos: Optional[QPointF] = None):
-        load_item = LoadPartItem(self.scene_ref, self, part_row, quantity)
+    def add_part(self, part_row: pd.Series, quantity: int = 1, drop_pos: Optional[QPointF] = None,
+                 width: float | None = None, height: float | None = None):
+        load_item = LoadPartItem(self.scene_ref, self, part_row, quantity, width=width, height=height)
         self.scene_ref.addItem(load_item)
         self.load_items.append(load_item)
         if drop_pos is None:
-            drop_pos = QPointF(self.scenePos().x() + 40, self.scenePos().y() + self.HEIGHT + 60)
+            drop_pos = QPointF(self.scenePos().x() + 40, self.scenePos().y() + self._height + 60)
         load_item.setPos(drop_pos)
         self.refresh_recursive()
         self.scene_ref.notify_layout_changed()
@@ -851,6 +972,7 @@ class BreakerItem(QGraphicsRectItem):
             f"안전율 {self.safety_factor:.2f} | 부하 {self.get_total_load_count()}개\n"
             f"합계 {self.get_total_current():.2f}A / {self.get_total_power():.0f}W | 추천 {self.suggested_breaker()}A"
         )
+        self._layout_text_items()
 
     def refresh_recursive(self):
         self.update_summary()
@@ -866,6 +988,8 @@ class BreakerItem(QGraphicsRectItem):
             "name": self.name,
             "x": round(pos.x(), 2),
             "y": round(pos.y(), 2),
+            "width": round(self._width, 2),
+            "height": round(self._height, 2),
             "safety_factor": self.safety_factor,
             "is_top_level": self.is_top_level,
             "loads": [item.to_dict() for item in self.load_items],
@@ -873,6 +997,8 @@ class BreakerItem(QGraphicsRectItem):
         }
 
 
+# ------------------------------------------------------------
+# Canvas scene / view
 # ------------------------------------------------------------
 # Canvas scene / view
 # ------------------------------------------------------------
@@ -910,7 +1036,8 @@ class BreakerCanvasScene(QGraphicsScene):
         self.notify_layout_changed()
         return breaker
 
-    def create_child_breaker(self, parent_breaker: BreakerItem, pos: Optional[QPointF] = None, name: Optional[str] = None) -> BreakerItem:
+    def create_child_breaker(self, parent_breaker: BreakerItem, pos: Optional[QPointF] = None,
+                             name: Optional[str] = None) -> BreakerItem:
         if pos is None:
             pos = QPointF(parent_breaker.scenePos().x() + 380, parent_breaker.scenePos().y() + 220)
         breaker = BreakerItem(self, name or self.new_breaker_name(), pos.x(), pos.y(), parent_breaker=parent_breaker)
@@ -937,18 +1064,21 @@ class BreakerCanvasScene(QGraphicsScene):
 
         pen = QPen(QColor("#b8c4d6"), 1.2)
         for breaker in self.all_breakers:
-            start_x = breaker.scenePos().x() + breaker.WIDTH / 2
-            start_y = breaker.scenePos().y() + breaker.HEIGHT
+            rect = breaker.rect()
+            start_x = breaker.scenePos().x() + rect.width() / 2
+            start_y = breaker.scenePos().y() + rect.height()
 
             for load_item in breaker.load_items:
-                end_x = load_item.scenePos().x() + load_item.WIDTH / 2
+                load_rect = load_item.rect()
+                end_x = load_item.scenePos().x() + load_rect.width() / 2
                 end_y = load_item.scenePos().y()
                 line = self.addLine(start_x, start_y, end_x, end_y, pen)
                 line.setZValue(-10)
                 self.connection_lines.append(line)
 
             for child in breaker.child_breakers:
-                end_x = child.scenePos().x() + child.WIDTH / 2
+                child_rect = child.rect()
+                end_x = child.scenePos().x() + child_rect.width() / 2
                 end_y = child.scenePos().y()
                 line = self.addLine(start_x, start_y, end_x, end_y, pen)
                 line.setZValue(-10)
@@ -1030,6 +1160,49 @@ class BreakerCanvasScene(QGraphicsScene):
     def save_to_file(self, path: Path):
         path.write_text(json.dumps(self.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
 
+    def export_to_excel(self, path: Path):
+        breaker_rows = []
+        load_rows = []
+        
+        def walk(breaker: BreakerItem, parent_name: str = ""):
+            breaker_rows.append({
+                "차단기 이름": breaker.name,
+                "상위 차단기": parent_name,
+                "안전율": round(breaker.safety_factor, 2),
+                "전체 부하 수": breaker.get_total_load_count(),
+                "합계 전류(A)": round(breaker.get_total_current(), 2),
+                "합계 전력(W)": round(breaker.get_total_power(), 2),
+                "차단기 용량(A)": breaker.suggested_breaker(),
+                "카드 X": round(breaker.scenePos().x(), 2),
+                "카드 Y": round(breaker.scenePos().y(), 2),
+                "카드 폭": round(breaker.rect().width(), 2),
+                "카드 높이": round(breaker.rect().height(), 2),
+            })
+            for load in breaker.load_items:
+                load_rows.append({
+                    "소속 차단기": breaker.name,
+                    "부하 Part No": load.part_no,
+                    "부하 이름": load.part_name,
+                    "수량": load.quantity,
+                    "단위 전류(A)": round(load.unit_current, 4),
+                    "합산 전류(A)": round(load.unit_current * load.quantity, 4),
+                    "단위 전력(W)": round(load.unit_power, 2),
+                    "합산 전력(W)": round(load.unit_power * load.quantity, 2),
+                    "카드 X": round(load.scenePos().x(), 2),
+                    "카드 Y": round(load.scenePos().y(), 2),
+                    "카드 폭": round(load.rect().width(), 2),
+                    "카드 높이": round(load.rect().height(), 2),
+                })
+            for child in breaker.child_breakers:
+                walk(child, breaker.name)
+
+        if self.top_breaker:
+            walk(self.top_breaker)
+
+        with pd.ExcelWriter(path, engine="openpyxl") as writer:
+            pd.DataFrame(breaker_rows).to_excel(writer, sheet_name="차단기요약", index=False)
+            pd.DataFrame(load_rows).to_excel(writer, sheet_name="하위부하상세", index=False)
+
     def _restore_breaker_tree(self, data: dict, parent: Optional[BreakerItem] = None):
         breaker = BreakerItem(
             self,
@@ -1039,6 +1212,8 @@ class BreakerCanvasScene(QGraphicsScene):
             float(data.get("safety_factor", 1.25)),
             parent_breaker=parent,
             is_top_level=bool(data.get("is_top_level", parent is None)),
+            width=float(data.get("width", BreakerItem.DEFAULT_WIDTH)),
+            height=float(data.get("height", BreakerItem.DEFAULT_HEIGHT)),
         )
         self.addItem(breaker)
         self.all_breakers.append(breaker)
@@ -1053,7 +1228,10 @@ class BreakerCanvasScene(QGraphicsScene):
                 breaker.add_part(
                     part_row,
                     int(load.get("quantity", 1)),
-                    QPointF(float(load.get("x", breaker.scenePos().x() + 40)), float(load.get("y", breaker.scenePos().y() + 180))),
+                    QPointF(float(load.get("x", breaker.scenePos().x() + 40)),
+                            float(load.get("y", breaker.scenePos().y() + 180))),
+                    width=float(load.get("width", LoadPartItem.DEFAULT_WIDTH)),
+                    height=float(load.get("height", LoadPartItem.DEFAULT_HEIGHT)),
                 )
 
         for child_data in data.get("children", []):
@@ -1084,10 +1262,37 @@ class BreakerCanvasScene(QGraphicsScene):
 class BreakerCanvasView(QGraphicsView):
     def __init__(self, scene: BreakerCanvasScene):
         super().__init__(scene)
+        self._zoom = 1.0
+        self._zoom_step = 1.15
+        self._zoom_min = 0.35
+        self._zoom_max = 3.0
         self.setRenderHint(QPainter.Antialiasing)
         self.setAcceptDrops(True)
         self.setDragMode(QGraphicsView.RubberBandDrag)
         self.setViewportUpdateMode(QGraphicsView.BoundingRectViewportUpdate)
+        self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
+        self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
+
+    def wheelEvent(self, event: QWheelEvent):
+        if event.modifiers() & Qt.ControlModifier:
+            factor = self._zoom_step if event.angleDelta().y() > 0 else 1 / self._zoom_step
+            next_zoom = self._zoom * factor
+            if next_zoom < self._zoom_min:
+                factor = self._zoom_min / self._zoom
+                self._zoom = self._zoom_min
+            elif next_zoom > self._zoom_max:
+                factor = self._zoom_max / self._zoom
+                self._zoom = self._zoom_max
+            else:
+                self._zoom = next_zoom
+            self.scale(factor, factor)
+            event.accept()
+            return
+        super().wheelEvent(event)
+
+    def reset_zoom(self):
+        self.resetTransform()
+        self._zoom = 1.0
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasText():
@@ -1106,7 +1311,6 @@ class BreakerCanvasView(QGraphicsView):
         self.scene().handle_drop(event.mimeData(), scene_pos)
         event.acceptProposedAction()
 
-
 # ------------------------------------------------------------
 # Canvas tab
 # ------------------------------------------------------------
@@ -1115,6 +1319,7 @@ class CanvasTab(QWidget):
         super().__init__()
         self.db = db
         self.scene = BreakerCanvasScene(self.db)
+        self._syncing_summary = False
         self._build_ui()
         self.scene.load_from_file(CANVAS_SAVE_PATH)
         self.refresh_summary_table()
@@ -1151,12 +1356,14 @@ class CanvasTab(QWidget):
         self.delete_selected_btn = QPushButton("선택 항목 삭제")
         self.save_canvas_btn = QPushButton("캔버스 저장")
         self.reset_canvas_btn = QPushButton("기본 배치 복원")
+        self.reset_zoom_btn = QPushButton("줌 초기화")
         for btn in [
             self.refresh_library_btn,
             self.add_top_breaker_btn,
             self.delete_selected_btn,
             self.save_canvas_btn,
             self.reset_canvas_btn,
+            self.reset_zoom_btn,
         ]:
             btn_row.addWidget(btn)
 
@@ -1173,7 +1380,9 @@ class CanvasTab(QWidget):
 
         canvas_group = QGroupBox("단선 구성 캔버스")
         canvas_layout = QVBoxLayout()
+        self.zoom_hint_label = QLabel("Ctrl + 휠: 확대/축소 | 카드 우하단 핸들 드래그: 크기 조절")
         self.canvas_view = BreakerCanvasView(self.scene)
+        canvas_layout.addWidget(self.zoom_hint_label)
         canvas_layout.addWidget(self.canvas_view)
         canvas_group.setLayout(canvas_layout)
 
@@ -1193,7 +1402,9 @@ class CanvasTab(QWidget):
         self.delete_selected_btn.clicked.connect(self.scene.delete_selected_items)
         self.save_canvas_btn.clicked.connect(self.save_canvas)
         self.reset_canvas_btn.clicked.connect(self.reset_canvas)
+        self.reset_zoom_btn.clicked.connect(self.canvas_view.reset_zoom)
         self.scene.layoutChanged.connect(self.refresh_summary_table)
+        self.summary_table.itemChanged.connect(self.on_summary_item_changed)
 
     def reload_library(self):
         self.part_list.refresh_parts()
@@ -1204,7 +1415,12 @@ class CanvasTab(QWidget):
     def save_canvas(self):
         try:
             self.scene.save_to_file(CANVAS_SAVE_PATH)
-            QMessageBox.information(self, "완료", f"캔버스 구성이 저장되었습니다.\n{CANVAS_SAVE_PATH}")
+            self.scene.export_to_excel(CANVAS_EXPORT_PATH)
+            QMessageBox.information(
+                self,
+                "완료",
+                f"캔버스 구성이 저장되었습니다.\nJSON: {CANVAS_SAVE_PATH}\nExcel: {CANVAS_EXPORT_PATH}"
+            )
         except Exception as e:
             logger.exception("Failed to save canvas")
             QMessageBox.critical(self, "오류", str(e))
@@ -1213,6 +1429,7 @@ class CanvasTab(QWidget):
         self.scene.clear_canvas()
         self.scene.add_top_breaker("MAIN-MCCB", 120, 80)
         self.scene.notify_layout_changed()
+        self.canvas_view.reset_zoom()
         self.save_canvas()
 
     def _collect_breakers(self, root_breaker: Optional[BreakerItem]) -> List[BreakerItem]:
@@ -1230,23 +1447,51 @@ class CanvasTab(QWidget):
 
     def refresh_summary_table(self):
         breakers = self._collect_breakers(self.scene.top_breaker)
-        self.summary_table.setRowCount(len(breakers))
-        for row, breaker in enumerate(breakers):
-            values = [
-                breaker.name,
-                f"{breaker.safety_factor:.2f}",
-                str(breaker.get_total_load_count()),
-                f"{breaker.get_total_current():.2f}",
-                f"{breaker.get_total_power():.0f}",
-                str(breaker.suggested_breaker()),
-            ]
-            for col, value in enumerate(values):
-                self.summary_table.setItem(row, col, QTableWidgetItem(value))
+        self._syncing_summary = True
+        try:
+            self.summary_table.setRowCount(len(breakers))
+            for row, breaker in enumerate(breakers):
+                values = [
+                    breaker.name,
+                    f"{breaker.safety_factor:.2f}",
+                    str(breaker.get_total_load_count()),
+                    f"{breaker.get_total_current():.2f}",
+                    f"{breaker.get_total_power():.0f}",
+                    str(breaker.suggested_breaker()),
+                ]
+                for col, value in enumerate(values):
+                    item = self.summary_table.item(row, col)
+                    if item is None:
+                        item = QTableWidgetItem()
+                        self.summary_table.setItem(row, col, item)
+                    item.setText(value)
+                    item.setData(Qt.UserRole, breaker)
+                    flags = Qt.ItemIsSelectable | Qt.ItemIsEnabled
+                    if col == 0:
+                        flags |= Qt.ItemIsEditable
+                    item.setFlags(flags)
+        finally:
+            self._syncing_summary = False
 
+    def on_summary_item_changed(self, item: QTableWidgetItem):
+        if self._syncing_summary or item.column() != 0:
+            return
+        breaker = item.data(Qt.UserRole)
+        if not isinstance(breaker, BreakerItem):
+            return
+        new_name = item.text().strip()
+        if not new_name:
+            self._syncing_summary = True
+            try:
+                item.setText(breaker.name)
+            finally:
+                self._syncing_summary = False
+            return
+        if breaker.name != new_name:
+            breaker.name = new_name
+            breaker.refresh_recursive()
+            self.scene.notify_layout_changed()
 
-# ------------------------------------------------------------
-# Main window
-# ------------------------------------------------------------
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
