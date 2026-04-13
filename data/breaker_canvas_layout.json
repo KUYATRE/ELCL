@@ -1,0 +1,101 @@
+{
+  "top_breaker": {
+    "name": "MAIN-MCCB",
+    "x": 120.0,
+    "y": 80.0,
+    "safety_factor": 1.25,
+    "is_top_level": true,
+    "loads": [],
+    "children": [
+      {
+        "name": "MCCB-01",
+        "x": 360.0,
+        "y": 222.0,
+        "safety_factor": 1.25,
+        "is_top_level": false,
+        "loads": [
+          {
+            "part_no": "MTR-001",
+            "quantity": 1,
+            "x": 492.0,
+            "y": 376.0
+          }
+        ],
+        "children": []
+      },
+      {
+        "name": "MCCB-02",
+        "x": 66.0,
+        "y": 223.0,
+        "safety_factor": 1.25,
+        "is_top_level": false,
+        "loads": [
+          {
+            "part_no": "MTR-001",
+            "quantity": 1,
+            "x": 65.0,
+            "y": 375.0
+          },
+          {
+            "part_no": "MTR-001",
+            "quantity": 1,
+            "x": 281.0,
+            "y": 376.0
+          }
+        ],
+        "children": [
+          {
+            "name": "MCCB-04",
+            "x": 55.0,
+            "y": 455.0,
+            "safety_factor": 1.25,
+            "is_top_level": false,
+            "loads": [
+              {
+                "part_no": "MTR-001",
+                "quantity": 1,
+                "x": 44.0,
+                "y": 606.0
+              },
+              {
+                "part_no": "MTR-001",
+                "quantity": 1,
+                "x": 259.0,
+                "y": 608.0
+              },
+              {
+                "part_no": "MTR-001",
+                "quantity": 1,
+                "x": 44.0,
+                "y": 689.0
+              },
+              {
+                "part_no": "MTR-001",
+                "quantity": 1,
+                "x": 260.0,
+                "y": 689.0
+              }
+            ],
+            "children": []
+          }
+        ]
+      },
+      {
+        "name": "MCCB-03",
+        "x": 652.0,
+        "y": 223.0,
+        "safety_factor": 1.25,
+        "is_top_level": false,
+        "loads": [
+          {
+            "part_no": "MTR-001",
+            "quantity": 1,
+            "x": 699.0,
+            "y": 376.0
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}
