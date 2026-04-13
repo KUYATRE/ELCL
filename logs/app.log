@@ -16432,3 +16432,7 @@
 2026-04-13 09:38:33,745 | DEBUG | electrical_capacity_app | __init__ | DatabaseManager init: C:\Users\h202202773\PycharmProjects\ELCL\data\parts.db
 2026-04-13 09:38:33,745 | INFO | electrical_capacity_app | _initialize | Initializing database
 2026-04-13 09:38:33,746 | INFO | electrical_capacity_app | _initialize | Database ready
+2026-04-14 08:33:56,989 | DEBUG | electrical_capacity_app | setup_logging | Logging initialized
+2026-04-14 08:33:57,114 | DEBUG | electrical_capacity_app | __init__ | DatabaseManager init: C:\Users\h202202773\PycharmProjects\ELCL\data\parts.db
+2026-04-14 08:33:57,114 | INFO | electrical_capacity_app | _initialize | Initializing database
+2026-04-14 08:33:57,119 | INFO | electrical_capacity_app | _initialize | Database ready
