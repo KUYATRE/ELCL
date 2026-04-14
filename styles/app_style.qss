@@ -27,7 +27,8 @@ QMenuBar::item:selected {
 QTabWidget::pane {
     border: 1px solid #d8e1ef;
     border-radius: 18px;
-    margin-top: 8px;
+    margin-top: 12px;
+    padding: 10px;
     background: transparent;
 }
 
@@ -65,7 +66,7 @@ QLabel#resultValue, QLabel#selectionInfo {
     padding: 8px 10px;
 }
 
-QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QListWidget, QTableWidget, QGraphicsView {
+QLineEdit, QSpinBox, QDoubleSpinBox, QListWidget, QTableWidget, QGraphicsView {
     background: #fbfdff;
     border: 1px solid #d8e3f1;
     border-radius: 14px;
@@ -74,7 +75,59 @@ QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QListWidget, QTableWidget, QGrap
     selection-color: #1e3a8a;
 }
 
-QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QListWidget:focus, QTableWidget:focus, QGraphicsView:focus {
+QComboBox {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                stop:0 #ffffff,
+                                stop:1 #f5f8fd);
+    border: 1px solid #d3ddea;
+    border-radius: 14px;
+    padding: 7px 40px 7px 12px;
+    min-height: 20px;
+}
+
+QComboBox:hover {
+    border: 1px solid #bccde3;
+    background: #ffffff;
+}
+
+QComboBox:focus {
+    border: 1px solid #8bb8ff;
+    background: #ffffff;
+}
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 30px;
+    margin: 3px 4px 3px 0;
+    border: 1px solid #d5deea;
+    border-radius: 10px;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                stop:0 #f8fbff,
+                                stop:1 #e8eff9);
+}
+
+QComboBox::drop-down:hover {
+    border: 1px solid #b7cae3;
+    background: #eef4fc;
+}
+
+QComboBox::down-arrow {
+    image: url("styles/combo_arrow_down.svg");
+    width: 12px;
+    height: 12px;
+}
+
+QComboBox QAbstractItemView {
+    background: #ffffff;
+    border: 1px solid #d8e3f1;
+    border-radius: 12px;
+    padding: 6px;
+    selection-background-color: #dbeafe;
+    selection-color: #1e3a8a;
+}
+
+QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QListWidget:focus, QTableWidget:focus, QGraphicsView:focus {
     border: 1px solid #8bb8ff;
 }
 
@@ -183,4 +236,65 @@ QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
     border: none;
     background: transparent;
     width: 0px;
+}
+
+
+QGroupBox {
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid #d9e3f0;
+    border-radius: 24px;
+    margin-top: 16px;
+    margin-left: 4px;
+    margin-right: 4px;
+    margin-bottom: 4px;
+    padding: 18px 16px 16px 16px;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 16px;
+    top: -2px;
+    padding: 0 6px;
+    color: #475569;
+    font-size: 10.5pt;
+    font-weight: 700;
+    background: transparent;
+}
+
+QWidget#sideTabRail {
+    background: transparent;
+}
+
+QPushButton[sideTab="true"] {
+    min-width: 44px;
+    max-width: 44px;
+    min-height: 112px;
+    max-height: 112px;
+    padding: 10px 6px;
+    border-radius: 18px;
+    font-weight: 700;
+    text-align: center;
+}
+
+QPushButton[sideTab="true"][expanded="true"] {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                stop:0 #ffffff,
+                                stop:1 #e9f1fe);
+    border: 1px solid #c3d4ef;
+}
+
+QPushButton[sideTab="true"][expanded="false"] {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                stop:0 #edf3fd,
+                                stop:1 #dde8f8);
+    border: 1px solid #c8d6ea;
+    color: #64748b;
+}
+
+QSplitter::handle {
+    background: transparent;
+}
+QSplitter::handle:hover {
+    background: rgba(191, 219, 254, 0.55);
+    border-radius: 5px;
 }

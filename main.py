@@ -30,8 +30,11 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
+    QAbstractSpinBox,
     QSpinBox,
     QDoubleSpinBox,
+    QSplitter,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -53,6 +56,7 @@ TEMPLATE_PATH = DATA_DIR / "parts_upload_template.xlsx"
 RAW_EXPORT_DEFAULT = DATA_DIR / "parts_raw_data.xlsx"
 CANVAS_SAVE_PATH = DATA_DIR / "breaker_canvas_layout.json"
 CANVAS_EXPORT_PATH = DATA_DIR / "breaker_canvas_layout.xlsx"
+BREAKER_TEMPLATE_PATH = DATA_DIR / "breaker_templates.json"
 
 DATA_DIR.mkdir(exist_ok=True)
 LOG_DIR.mkdir(exist_ok=True)
@@ -86,6 +90,47 @@ def setup_logging() -> logging.Logger:
 
 
 logger = setup_logging()
+
+DEFAULT_BREAKER_TEMPLATES = [
+    {"label": "ELCB", "prefix": "ELCB"},
+    {"label": "MCCB", "prefix": "MCCB"},
+    {"label": "CP", "prefix": "CP"},
+]
+
+
+def load_breaker_templates() -> List[dict]:
+    templates = list(DEFAULT_BREAKER_TEMPLATES)
+    if BREAKER_TEMPLATE_PATH.exists():
+        try:
+            saved = json.loads(BREAKER_TEMPLATE_PATH.read_text(encoding="utf-8"))
+            if isinstance(saved, list):
+                for item in saved:
+                    prefix = str(item.get("prefix", "")).strip().upper()
+                    label = str(item.get("label", prefix)).strip()
+                    if prefix and not any(t["prefix"] == prefix for t in templates):
+                        templates.append({"label": label or prefix, "prefix": prefix})
+        except Exception:
+            logger.exception("Failed to load breaker templates")
+    return templates
+
+
+def save_breaker_templates(templates: List[dict]):
+    payload = []
+    for item in templates:
+        prefix = str(item.get("prefix", "")).strip().upper()
+        label = str(item.get("label", prefix)).strip()
+        if prefix:
+            payload.append({"label": label or prefix, "prefix": prefix})
+    BREAKER_TEMPLATE_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def apply_card_shadow(widget: QWidget, blur: int = 18, y_offset: int = 3, alpha: int = 34):
+    effect = QGraphicsDropShadowEffect(widget)
+    effect.setBlurRadius(blur)
+    effect.setOffset(0, y_offset)
+    effect.setColor(QColor(15, 23, 42, alpha))
+    widget.setGraphicsEffect(effect)
+
 
 
 # ------------------------------------------------------------
@@ -317,14 +362,17 @@ class PartsTab(QWidget):
         self.voltage_spin.setRange(0, 100000)
         self.voltage_spin.setDecimals(2)
         self.voltage_spin.setValue(220)
+        self.voltage_spin.setButtonSymbols(QAbstractSpinBox.NoButtons)
 
         self.current_spin = QDoubleSpinBox()
         self.current_spin.setRange(0, 100000)
         self.current_spin.setDecimals(2)
+        self.current_spin.setButtonSymbols(QAbstractSpinBox.NoButtons)
 
         self.power_spin = QDoubleSpinBox()
         self.power_spin.setRange(0, 10000000)
         self.power_spin.setDecimals(2)
+        self.power_spin.setButtonSymbols(QAbstractSpinBox.NoButtons)
 
         self.phase_combo = QComboBox()
         self.phase_combo.addItems(["1P", "3P", "DC"])
@@ -333,10 +381,12 @@ class PartsTab(QWidget):
         self.pf_spin.setRange(0, 1)
         self.pf_spin.setSingleStep(0.01)
         self.pf_spin.setValue(0.95)
+        self.pf_spin.setButtonSymbols(QAbstractSpinBox.NoButtons)
 
         self.breaker_spin = QDoubleSpinBox()
         self.breaker_spin.setRange(0, 10000)
         self.breaker_spin.setDecimals(0)
+        self.breaker_spin.setButtonSymbols(QAbstractSpinBox.NoButtons)
 
         self.note_edit = QLineEdit()
 
@@ -385,6 +435,9 @@ class PartsTab(QWidget):
         layout.addWidget(form_group)
         layout.addLayout(button_row)
         layout.addWidget(self.table)
+
+        apply_card_shadow(form_group)
+        apply_card_shadow(self.table, blur=16, y_offset=3, alpha=30)
 
         self.save_btn.clicked.connect(self.save_part)
         self.template_btn.clicked.connect(self.download_template)
@@ -486,10 +539,12 @@ class CalcTab(QWidget):
         self.qty_spin = QSpinBox()
         self.qty_spin.setRange(1, 100000)
         self.qty_spin.setValue(1)
+        self.qty_spin.setButtonSymbols(QAbstractSpinBox.NoButtons)
         self.safety_factor_spin = QDoubleSpinBox()
         self.safety_factor_spin.setRange(1.0, 5.0)
         self.safety_factor_spin.setSingleStep(0.05)
         self.safety_factor_spin.setValue(1.25)
+        self.safety_factor_spin.setButtonSymbols(QAbstractSpinBox.NoButtons)
         self.calc_btn = QPushButton("계산 실행")
         self.reload_btn = QPushButton("파트 목록 다시 불러오기")
 
@@ -519,6 +574,9 @@ class CalcTab(QWidget):
         layout.addWidget(input_group)
         layout.addWidget(result_group)
         layout.addStretch()
+
+        apply_card_shadow(input_group)
+        apply_card_shadow(result_group)
 
         self.calc_btn.clicked.connect(self.run_calculation)
         self.reload_btn.clicked.connect(self.reload_part_numbers)
@@ -585,25 +643,70 @@ class BreakerTemplateListWidget(QListWidget):
         super().__init__()
         self.setDragEnabled(True)
         self.setAlternatingRowColors(True)
-        item = QListWidgetItem("하위 차단기 템플릿")
-        item.setData(Qt.UserRole, "breaker_template")
-        self.addItem(item)
+        self.refresh_templates(load_breaker_templates())
+
+    def refresh_templates(self, templates: List[dict]):
+        self.clear()
+        for template in templates:
+            prefix = str(template.get("prefix", "")).strip().upper()
+            label = str(template.get("label", prefix)).strip()
+            if not prefix:
+                continue
+            item = QListWidgetItem(label)
+            item.setData(Qt.UserRole, prefix)
+            item.setToolTip(f"드래그하여 {prefix} 차단기 생성")
+            self.addItem(item)
 
     def startDrag(self, supportedActions):
         item = self.currentItem()
         if item is None:
             return
+        prefix = item.data(Qt.UserRole)
+        if not prefix:
+            return
         drag = QDrag(self)
         mime = QMimeData()
-        mime.setText("breaker_template")
+        mime.setText(str(prefix))
         mime.setData("application/x-item-type", b"breaker")
         drag.setMimeData(mime)
         drag.exec(Qt.CopyAction)
 
 
-# ------------------------------------------------------------
-# Canvas items
-# ------------------------------------------------------------
+class BreakerTemplateDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("차단기 템플릿 추가")
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+
+        self.type_combo = QComboBox()
+        self.type_combo.addItems(["ELCB", "MCCB", "CP", "CUSTOM"])
+        self.label_edit = QLineEdit()
+        self.prefix_edit = QLineEdit()
+        self.type_combo.currentTextChanged.connect(self._sync_defaults)
+        self._sync_defaults(self.type_combo.currentText())
+
+        form.addRow("기본 타입", self.type_combo)
+        form.addRow("표시 이름", self.label_edit)
+        form.addRow("접두어", self.prefix_edit)
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _sync_defaults(self, text: str):
+        if text != "CUSTOM":
+            self.label_edit.setText(text)
+            self.prefix_edit.setText(text)
+
+    def values(self) -> tuple[str, str]:
+        label = self.label_edit.text().strip()
+        prefix = self.prefix_edit.text().strip().upper()
+        return label, prefix
+
+
 class BreakerSettingsDialog(QDialog):
     def __init__(self, breaker_name: str, safety_factor: float, parent=None):
         super().__init__(parent)
@@ -773,12 +876,14 @@ class BreakerItem(QGraphicsRectItem):
 
     def __init__(self, scene_ref: 'BreakerCanvasScene', name: str, pos_x: float, pos_y: float,
                  safety_factor: float = 1.25, parent_breaker: Optional['BreakerItem'] = None,
-                 is_top_level: bool = False, width: float | None = None, height: float | None = None):
+                 is_top_level: bool = False, width: float | None = None, height: float | None = None,
+                 breaker_type: str = "MCCB"):
         self._width = float(width or self.DEFAULT_WIDTH)
         self._height = float(height or self.DEFAULT_HEIGHT)
         super().__init__(0, 0, self._width, self._height)
         self.scene_ref = scene_ref
         self.name = name
+        self.breaker_type = (breaker_type or "MCCB").upper()
         self.safety_factor = safety_factor
         self.parent_breaker = parent_breaker
         self.child_breakers: List['BreakerItem'] = []
@@ -866,6 +971,9 @@ class BreakerItem(QGraphicsRectItem):
             new_name, new_safety_factor = dialog.values()
             if new_name:
                 self.name = new_name
+                inferred = new_name.split("-")[0].strip().upper()
+                if inferred:
+                    self.breaker_type = inferred
             self.safety_factor = new_safety_factor
             self.refresh_recursive()
             self.scene_ref.notify_layout_changed()
@@ -991,6 +1099,7 @@ class BreakerItem(QGraphicsRectItem):
             "width": round(self._width, 2),
             "height": round(self._height, 2),
             "safety_factor": self.safety_factor,
+            "breaker_type": self.breaker_type,
             "is_top_level": self.is_top_level,
             "loads": [item.to_dict() for item in self.load_items],
             "children": [child.to_dict() for child in self.child_breakers],
@@ -1012,12 +1121,21 @@ class BreakerCanvasScene(QGraphicsScene):
         self.all_breakers: List[BreakerItem] = []
         self.connection_lines = []
         self.breaker_seq = 1
-        self.setSceneRect(0, 0, 2600, 1800)
+        self.setSceneRect(-50000, -50000, 100000, 100000)
         self.setBackgroundBrush(QBrush(QColor("#f8fafc")))
 
-    def new_breaker_name(self) -> str:
+    def ensure_visible_scene_area(self):
+        if not self.all_breakers:
+            return
+        bounds = self.itemsBoundingRect().adjusted(-1200, -1200, 1200, 1200)
+        scene_rect = self.sceneRect()
+        if not scene_rect.contains(bounds):
+            self.setSceneRect(scene_rect.united(bounds))
+
+    def new_breaker_name(self, breaker_type: str = "MCCB") -> str:
+        prefix = (breaker_type or "MCCB").upper()
         while True:
-            name = f"MCCB-{self.breaker_seq:02d}"
+            name = f"{prefix}-{self.breaker_seq:02d}"
             self.breaker_seq += 1
             if not any(b.name == name for b in self.all_breakers):
                 return name
@@ -1025,11 +1143,12 @@ class BreakerCanvasScene(QGraphicsScene):
     def get_top_breakers(self) -> List[BreakerItem]:
         return [b for b in self.all_breakers if b.parent_breaker is None]
 
-    def add_top_breaker(self, name: Optional[str] = None, x: float = 120, y: float = 80) -> Optional[BreakerItem]:
+    def add_top_breaker(self, name: Optional[str] = None, x: float = 120, y: float = 80, breaker_type: str = "MCCB") -> Optional[BreakerItem]:
         if self.top_breaker is not None:
             QMessageBox.information(None, "안내", "최상위 차단기는 1개만 생성할 수 있습니다.")
             return None
-        breaker = BreakerItem(self, name or self.new_breaker_name(), x, y, is_top_level=True)
+        resolved_name = name or f"MAIN-{(breaker_type or 'MCCB').upper()}"
+        breaker = BreakerItem(self, resolved_name, x, y, is_top_level=True, breaker_type=breaker_type)
         self.addItem(breaker)
         self.all_breakers.append(breaker)
         self.top_breaker = breaker
@@ -1037,10 +1156,17 @@ class BreakerCanvasScene(QGraphicsScene):
         return breaker
 
     def create_child_breaker(self, parent_breaker: BreakerItem, pos: Optional[QPointF] = None,
-                             name: Optional[str] = None) -> BreakerItem:
+                             name: Optional[str] = None, breaker_type: str = "MCCB") -> BreakerItem:
         if pos is None:
             pos = QPointF(parent_breaker.scenePos().x() + 380, parent_breaker.scenePos().y() + 220)
-        breaker = BreakerItem(self, name or self.new_breaker_name(), pos.x(), pos.y(), parent_breaker=parent_breaker)
+        breaker = BreakerItem(
+            self,
+            name or self.new_breaker_name(breaker_type),
+            pos.x(),
+            pos.y(),
+            parent_breaker=parent_breaker,
+            breaker_type=breaker_type,
+        )
         self.addItem(breaker)
         self.all_breakers.append(breaker)
         parent_breaker.child_breakers.append(breaker)
@@ -1088,6 +1214,7 @@ class BreakerCanvasScene(QGraphicsScene):
         for breaker in self.all_breakers:
             breaker.update_summary()
         self.update_connection_lines()
+        self.ensure_visible_scene_area()
         self.layoutChanged.emit()
 
     def delete_item(self, item):
@@ -1144,7 +1271,12 @@ class BreakerCanvasScene(QGraphicsScene):
             if not target_breaker:
                 QMessageBox.warning(None, "배치 실패", "하위 차단기는 기존 차단기 위에 드롭해야 합니다.")
                 return
-            self.create_child_breaker(target_breaker, QPointF(scene_pos.x(), scene_pos.y() + 160))
+            breaker_type = (mime.text() or "MCCB").strip().upper()
+            self.create_child_breaker(
+                target_breaker,
+                QPointF(scene_pos.x(), scene_pos.y() + 160),
+                breaker_type=breaker_type,
+            )
 
     def to_dict(self) -> dict:
         if self.top_breaker is None:
@@ -1172,11 +1304,8 @@ class BreakerCanvasScene(QGraphicsScene):
                 "전체 부하 수": breaker.get_total_load_count(),
                 "합계 전류(A)": round(breaker.get_total_current(), 2),
                 "합계 전력(W)": round(breaker.get_total_power(), 2),
+                "차단기 종류": breaker.breaker_type,
                 "차단기 용량(A)": breaker.suggested_breaker(),
-                "카드 X": round(breaker.scenePos().x(), 2),
-                "카드 Y": round(breaker.scenePos().y(), 2),
-                "카드 폭": round(breaker.rect().width(), 2),
-                "카드 높이": round(breaker.rect().height(), 2),
             })
             for load in breaker.load_items:
                 load_rows.append({
@@ -1188,10 +1317,6 @@ class BreakerCanvasScene(QGraphicsScene):
                     "합산 전류(A)": round(load.unit_current * load.quantity, 4),
                     "단위 전력(W)": round(load.unit_power, 2),
                     "합산 전력(W)": round(load.unit_power * load.quantity, 2),
-                    "카드 X": round(load.scenePos().x(), 2),
-                    "카드 Y": round(load.scenePos().y(), 2),
-                    "카드 폭": round(load.rect().width(), 2),
-                    "카드 높이": round(load.rect().height(), 2),
                 })
             for child in breaker.child_breakers:
                 walk(child, breaker.name)
@@ -1206,7 +1331,7 @@ class BreakerCanvasScene(QGraphicsScene):
     def _restore_breaker_tree(self, data: dict, parent: Optional[BreakerItem] = None):
         breaker = BreakerItem(
             self,
-            data.get("name", self.new_breaker_name()),
+            data.get("name", self.new_breaker_name(data.get("breaker_type", "MCCB"))),
             float(data.get("x", 120)),
             float(data.get("y", 80)),
             float(data.get("safety_factor", 1.25)),
@@ -1214,6 +1339,7 @@ class BreakerCanvasScene(QGraphicsScene):
             is_top_level=bool(data.get("is_top_level", parent is None)),
             width=float(data.get("width", BreakerItem.DEFAULT_WIDTH)),
             height=float(data.get("height", BreakerItem.DEFAULT_HEIGHT)),
+            breaker_type=str(data.get("breaker_type", str(data.get("name", "MCCB")).split("-")[0] or "MCCB")),
         )
         self.addItem(breaker)
         self.all_breakers.append(breaker)
@@ -1243,20 +1369,20 @@ class BreakerCanvasScene(QGraphicsScene):
     def load_from_file(self, path: Path):
         self.clear_canvas()
         if not path.exists():
-            self.add_top_breaker("MAIN-MCCB", 120, 80)
+            self.add_top_breaker("MAIN-MCCB", 120, 80, breaker_type="MCCB")
             return
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             top_data = data.get("top_breaker")
             if not top_data:
-                self.add_top_breaker("MAIN-MCCB", 120, 80)
+                self.add_top_breaker("MAIN-MCCB", 120, 80, breaker_type="MCCB")
             else:
                 self._restore_breaker_tree(top_data, None)
             self.notify_layout_changed()
         except Exception:
             logger.exception("Failed to load canvas layout")
             self.clear_canvas()
-            self.add_top_breaker("MAIN-MCCB", 120, 80)
+            self.add_top_breaker("MAIN-MCCB", 120, 80, breaker_type="MCCB")
 
 
 class BreakerCanvasView(QGraphicsView):
@@ -1320,55 +1446,102 @@ class CanvasTab(QWidget):
         self.db = db
         self.scene = BreakerCanvasScene(self.db)
         self._syncing_summary = False
+        self.breaker_templates = load_breaker_templates()
         self._build_ui()
         self.scene.load_from_file(CANVAS_SAVE_PATH)
         self.refresh_summary_table()
 
     def _apply_widget_shadow(self, widget: QWidget):
-        effect = QGraphicsDropShadowEffect(widget)
-        effect.setBlurRadius(20)
-        effect.setOffset(0, 4)
-        effect.setColor(QColor(0, 0, 0, 40))
-        widget.setGraphicsEffect(effect)
+        apply_card_shadow(widget, blur=14, y_offset=2, alpha=32)
 
     def _build_ui(self):
-        root = QHBoxLayout(self)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(10, 10, 10, 10)
+        root.setSpacing(10)
 
-        left_panel = QVBoxLayout()
+        toolbar = QHBoxLayout()
+        self.refresh_library_btn = QPushButton("라이브러리 새로고침")
+        self.add_top_breaker_btn = QPushButton("최상위 차단기 생성")
+        self.main_breaker_type_combo = QComboBox()
+        self.main_breaker_type_combo.addItems(["MCCB", "ELCB"])
+        self.delete_selected_btn = QPushButton("선택 항목 삭제")
+        self.save_canvas_btn = QPushButton("캔버스 저장")
+        self.reset_canvas_btn = QPushButton("기본 배치 복원")
+        self.reset_zoom_btn = QPushButton("줌 초기화")
+        self.toggle_parts_btn = QPushButton("파트")
+        self.toggle_parts_btn.setToolTip("파트 라이브러리")
+        self.toggle_templates_btn = QPushButton("템플릿")
+        self.toggle_templates_btn.setToolTip("차단기 템플릿")
+        self.toggle_summary_btn = QPushButton("요약")
+        self.toggle_summary_btn.setToolTip("계산 요약")
+        for btn in (self.toggle_parts_btn, self.toggle_templates_btn, self.toggle_summary_btn):
+            btn.setCheckable(True)
+            btn.setChecked(True)
+            btn.setProperty("panelToggle", True)
+            btn.setMinimumWidth(76)
+
+        toolbar.addWidget(self.refresh_library_btn)
+        toolbar.addWidget(QLabel("MAIN 종류"))
+        toolbar.addWidget(self.main_breaker_type_combo)
+        toolbar.addWidget(self.add_top_breaker_btn)
+        toolbar.addWidget(self.delete_selected_btn)
+        toolbar.addWidget(self.save_canvas_btn)
+        toolbar.addWidget(self.reset_canvas_btn)
+        toolbar.addWidget(self.reset_zoom_btn)
+        toolbar.addStretch()
+        toolbar.addWidget(self.toggle_parts_btn)
+        toolbar.addWidget(self.toggle_templates_btn)
+        toolbar.addWidget(self.toggle_summary_btn)
+        root.addLayout(toolbar)
+
+        self.main_splitter = QSplitter(Qt.Horizontal)
+        self.main_splitter.setChildrenCollapsible(True)
+        self.main_splitter.setHandleWidth(10)
+        root.addWidget(self.main_splitter, 1)
+
+        canvas_group = QGroupBox("단선 구성 캔버스")
+        canvas_layout = QVBoxLayout()
+        canvas_layout.setContentsMargins(10, 12, 10, 10)
+        canvas_layout.setSpacing(8)
+        self.canvas_view = BreakerCanvasView(self.scene)
+        self.canvas_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        canvas_layout.addWidget(self.canvas_view)
+        canvas_group.setLayout(canvas_layout)
+
+        self.side_panel = QWidget()
+        self.side_panel.setObjectName("canvasSidePanel")
+        self.side_panel.setMinimumWidth(280)
+        self.side_panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        self.side_layout = QVBoxLayout(self.side_panel)
+        self.side_layout.setContentsMargins(0, 0, 0, 0)
+        self.side_layout.setSpacing(12)
+
         lib_group = QGroupBox("파트 라이브러리")
         lib_layout = QVBoxLayout()
+        lib_layout.setContentsMargins(10, 12, 10, 10)
+        lib_layout.setSpacing(8)
         self.part_list = DraggablePartListWidget(self.db)
-        self.part_list.setMinimumWidth(330)
+        self.part_list.setMinimumWidth(280)
         lib_layout.addWidget(QLabel("파트를 드래그해서 차단기 위에 놓으면 하위 부하로 추가됩니다."))
         lib_layout.addWidget(self.part_list)
         lib_group.setLayout(lib_layout)
 
         breaker_group = QGroupBox("차단기 템플릿")
         breaker_layout = QVBoxLayout()
+        breaker_layout.setContentsMargins(10, 12, 10, 10)
+        breaker_layout.setSpacing(8)
         self.breaker_template_list = BreakerTemplateListWidget()
-        breaker_layout.addWidget(QLabel("하위 차단기 템플릿을 드래그해서 기존 차단기 위에 놓으세요."))
+        self.breaker_template_list.refresh_templates(self.breaker_templates)
+        self.add_template_btn = QPushButton("템플릿 추가")
+        breaker_layout.addWidget(QLabel("템플릿을 드래그해서 기존 차단기 위에 놓으세요."))
         breaker_layout.addWidget(self.breaker_template_list)
+        breaker_layout.addWidget(self.add_template_btn)
         breaker_group.setLayout(breaker_layout)
-
-        btn_row = QHBoxLayout()
-        self.refresh_library_btn = QPushButton("라이브러리 새로고침")
-        self.add_top_breaker_btn = QPushButton("최상위 차단기 생성")
-        self.delete_selected_btn = QPushButton("선택 항목 삭제")
-        self.save_canvas_btn = QPushButton("캔버스 저장")
-        self.reset_canvas_btn = QPushButton("기본 배치 복원")
-        self.reset_zoom_btn = QPushButton("줌 초기화")
-        for btn in [
-            self.refresh_library_btn,
-            self.add_top_breaker_btn,
-            self.delete_selected_btn,
-            self.save_canvas_btn,
-            self.reset_canvas_btn,
-            self.reset_zoom_btn,
-        ]:
-            btn_row.addWidget(btn)
 
         summary_group = QGroupBox("차단기별 계산 요약")
         summary_layout = QVBoxLayout()
+        summary_layout.setContentsMargins(10, 12, 10, 10)
+        summary_layout.setSpacing(8)
         self.summary_table = QTableWidget()
         self.summary_table.setColumnCount(6)
         self.summary_table.setHorizontalHeaderLabels([
@@ -1378,24 +1551,23 @@ class CanvasTab(QWidget):
         summary_layout.addWidget(self.summary_table)
         summary_group.setLayout(summary_layout)
 
-        canvas_group = QGroupBox("단선 구성 캔버스")
-        canvas_layout = QVBoxLayout()
-        self.zoom_hint_label = QLabel("Ctrl + 휠: 확대/축소 | 카드 우하단 핸들 드래그: 크기 조절")
-        self.canvas_view = BreakerCanvasView(self.scene)
-        canvas_layout.addWidget(self.zoom_hint_label)
-        canvas_layout.addWidget(self.canvas_view)
-        canvas_group.setLayout(canvas_layout)
-
         for w in [lib_group, breaker_group, summary_group, canvas_group]:
             self._apply_widget_shadow(w)
 
-        left_panel.addWidget(lib_group)
-        left_panel.addWidget(breaker_group)
-        left_panel.addLayout(btn_row)
-        left_panel.addWidget(summary_group)
+        self.main_splitter.addWidget(canvas_group)
+        self.main_splitter.addWidget(self.side_panel)
+        self.side_layout.addWidget(lib_group)
+        self.side_layout.addWidget(breaker_group)
+        self.side_layout.addWidget(summary_group)
+        self.main_splitter.setSizes([1200, 460])
 
-        root.addLayout(left_panel, 1)
-        root.addWidget(canvas_group, 2)
+        self.lib_group = lib_group
+        self.breaker_group = breaker_group
+        self.summary_group = summary_group
+        self._update_side_tab_button(self.toggle_parts_btn, True)
+        self._update_side_tab_button(self.toggle_templates_btn, True)
+        self._update_side_tab_button(self.toggle_summary_btn, True)
+        self._refresh_side_container_layout(initial=True)
 
         self.refresh_library_btn.clicked.connect(self.reload_library)
         self.add_top_breaker_btn.clicked.connect(self.add_top_breaker)
@@ -1403,14 +1575,78 @@ class CanvasTab(QWidget):
         self.save_canvas_btn.clicked.connect(self.save_canvas)
         self.reset_canvas_btn.clicked.connect(self.reset_canvas)
         self.reset_zoom_btn.clicked.connect(self.canvas_view.reset_zoom)
+        self.toggle_parts_btn.clicked.connect(lambda: self.toggle_side_panel(self.lib_group, self.toggle_parts_btn, "파트"))
+        self.toggle_templates_btn.clicked.connect(lambda: self.toggle_side_panel(self.breaker_group, self.toggle_templates_btn, "템플릿"))
+        self.toggle_summary_btn.clicked.connect(lambda: self.toggle_side_panel(self.summary_group, self.toggle_summary_btn, "요약"))
+        self.add_template_btn.clicked.connect(self.add_breaker_template)
         self.scene.layoutChanged.connect(self.refresh_summary_table)
         self.summary_table.itemChanged.connect(self.on_summary_item_changed)
 
+    def _update_side_tab_button(self, button: QPushButton, active: bool):
+        button.blockSignals(True)
+        button.setChecked(active)
+        button.setProperty("expanded", active)
+        button.style().unpolish(button)
+        button.style().polish(button)
+        button.blockSignals(False)
+
+    def toggle_side_panel(self, widget: QWidget, button: QPushButton, title: str):
+        will_show = not widget.isHidden()
+        will_show = not will_show
+        widget.setHidden(not will_show)
+        self._update_side_tab_button(button, will_show)
+        self._refresh_side_container_layout()
+
+    def _refresh_side_container_layout(self, initial: bool = False):
+        groups = [self.lib_group, self.breaker_group, self.summary_group]
+        has_visible = any(not w.isHidden() for w in groups)
+
+        self.side_panel.setVisible(has_visible)
+        self.side_panel.updateGeometry()
+        self.main_splitter.updateGeometry()
+
+        if has_visible:
+            self.side_panel.setMinimumWidth(320)
+            self.side_panel.setMaximumWidth(16777215)
+            self.side_panel.adjustSize()
+
+            sizes = self.main_splitter.sizes()
+            if initial or len(sizes) < 2 or sizes[1] == 0:
+                self.main_splitter.setSizes([1200, 460])
+            else:
+                total = max(sum(sizes), 1400)
+                right = max(360, sizes[1])
+                left = max(400, total - right)
+                self.main_splitter.setSizes([left, right])
+        else:
+            self.side_panel.setMinimumWidth(0)
+            self.side_panel.setMaximumWidth(0)
+            total = max(sum(self.main_splitter.sizes()), 1400)
+            self.main_splitter.setSizes([total, 0])
+
+    def add_breaker_template(self):
+        dialog = BreakerTemplateDialog(self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        label, prefix = dialog.values()
+        if not prefix:
+            QMessageBox.warning(self, "오류", "접두어를 입력하세요.")
+            return
+        if any(t["prefix"] == prefix for t in self.breaker_templates):
+            QMessageBox.information(self, "안내", "이미 등록된 템플릿입니다.")
+            return
+        self.breaker_templates.append({"label": label or prefix, "prefix": prefix})
+        save_breaker_templates(self.breaker_templates)
+        self.breaker_template_list.refresh_templates(self.breaker_templates)
+
     def reload_library(self):
         self.part_list.refresh_parts()
+        self.breaker_templates = load_breaker_templates()
+        self.breaker_template_list.refresh_templates(self.breaker_templates)
 
     def add_top_breaker(self):
-        self.scene.add_top_breaker("MAIN-MCCB", 120, 80)
+        breaker_type = self.main_breaker_type_combo.currentText()
+        self.scene.add_top_breaker(f"MAIN-{breaker_type}", 120, 80, breaker_type=breaker_type)
 
     def save_canvas(self):
         try:
@@ -1426,8 +1662,9 @@ class CanvasTab(QWidget):
             QMessageBox.critical(self, "오류", str(e))
 
     def reset_canvas(self):
+        breaker_type = self.main_breaker_type_combo.currentText()
         self.scene.clear_canvas()
-        self.scene.add_top_breaker("MAIN-MCCB", 120, 80)
+        self.scene.add_top_breaker(f"MAIN-{breaker_type}", 120, 80, breaker_type=breaker_type)
         self.scene.notify_layout_changed()
         self.canvas_view.reset_zoom()
         self.save_canvas()
@@ -1446,6 +1683,12 @@ class CanvasTab(QWidget):
         return result
 
     def refresh_summary_table(self):
+        if self.scene.top_breaker is not None:
+            top_type = (self.scene.top_breaker.breaker_type or "MCCB").upper()
+            idx = self.main_breaker_type_combo.findText(top_type)
+            if idx >= 0:
+                self.main_breaker_type_combo.setCurrentIndex(idx)
+
         breakers = self._collect_breakers(self.scene.top_breaker)
         self._syncing_summary = True
         try:

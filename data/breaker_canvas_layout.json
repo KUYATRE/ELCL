@@ -1,141 +1,105 @@
 {
   "top_breaker": {
     "name": "MAIN-MCCB",
-    "x": 27.58,
-    "y": 28.35,
-    "width": 220.0,
+    "x": 120.0,
+    "y": 80.0,
+    "width": 280.0,
     "height": 120.0,
-    "safety_factor": 1.5,
+    "safety_factor": 1.25,
+    "breaker_type": "MAIN",
     "is_top_level": true,
     "loads": [],
     "children": [
       {
         "name": "MCCB-01",
-        "x": 322.36,
-        "y": 173.83,
-        "width": 220.0,
+        "x": 360.0,
+        "y": 222.0,
+        "width": 280.0,
         "height": 120.0,
         "safety_factor": 1.25,
+        "breaker_type": "MCCB",
         "is_top_level": false,
         "loads": [
           {
             "part_no": "MTR-001",
             "quantity": 1,
-            "x": 371.05,
-            "y": 332.73,
-            "width": 160.0,
-            "height": 60.0
+            "x": 492.0,
+            "y": 376.0,
+            "width": 200.0,
+            "height": 68.0
           }
         ],
         "children": []
       },
       {
         "name": "MCCB-02",
-        "x": 28.36,
-        "y": 174.83,
-        "width": 220.0,
+        "x": 66.0,
+        "y": 223.0,
+        "width": 280.0,
         "height": 120.0,
         "safety_factor": 1.25,
+        "breaker_type": "MCCB",
         "is_top_level": false,
         "loads": [
           {
             "part_no": "MTR-001",
             "quantity": 1,
-            "x": 22.46,
-            "y": 326.83,
-            "width": 160.0,
-            "height": 67.13
+            "x": 65.0,
+            "y": 375.0,
+            "width": 200.0,
+            "height": 68.0
           },
           {
             "part_no": "MTR-001",
             "quantity": 1,
-            "x": 199.25,
-            "y": 334.36,
-            "width": 160.0,
-            "height": 60.0
+            "x": 281.0,
+            "y": 376.0,
+            "width": 200.0,
+            "height": 68.0
           }
         ],
         "children": [
           {
-            "name": "CP01",
-            "x": 32.06,
-            "y": 421.53,
-            "width": 220.0,
+            "name": "MCCB-04",
+            "x": 55.0,
+            "y": 455.0,
+            "width": 280.0,
             "height": 120.0,
             "safety_factor": 1.25,
+            "breaker_type": "MCCB",
             "is_top_level": false,
             "loads": [
               {
                 "part_no": "MTR-001",
                 "quantity": 1,
-                "x": 21.06,
-                "y": 572.53,
-                "width": 160.0,
-                "height": 60.0
+                "x": 44.0,
+                "y": 606.0,
+                "width": 200.0,
+                "height": 68.0
               },
               {
                 "part_no": "MTR-001",
                 "quantity": 1,
-                "x": 203.02,
-                "y": 574.53,
-                "width": 160.0,
-                "height": 60.0
+                "x": 259.0,
+                "y": 608.0,
+                "width": 200.0,
+                "height": 68.0
               },
               {
                 "part_no": "MTR-001",
                 "quantity": 1,
-                "x": 21.06,
-                "y": 655.53,
-                "width": 160.0,
-                "height": 60.0
+                "x": 44.0,
+                "y": 689.0,
+                "width": 200.0,
+                "height": 68.0
               },
               {
                 "part_no": "MTR-001",
                 "quantity": 1,
-                "x": 201.41,
-                "y": 655.53,
-                "width": 160.0,
-                "height": 60.0
-              },
-              {
-                "part_no": "MTR-001",
-                "quantity": 1,
-                "x": 22.06,
-                "y": 737.53,
-                "width": 160.0,
-                "height": 60.0
-              },
-              {
-                "part_no": "MTR-001",
-                "quantity": 1,
-                "x": 201.74,
-                "y": 735.64,
-                "width": 160.0,
-                "height": 60.0
-              },
-              {
-                "part_no": "MTR-001",
-                "quantity": 1,
-                "x": 26.07,
-                "y": 897.67,
-                "width": 160.0,
-                "height": 60.0
-              },
-              {
-                "part_no": "MTR-001",
-                "quantity": 1,
-                "x": 207.4,
-                "y": 827.43,
-                "width": 160.0,
-                "height": 60.0
-              },
-              {
-                "part_no": "MTR-001",
-                "quantity": 1,
-                "x": 26.07,
-                "y": 815.99,
-                "width": 160.0,
-                "height": 60.0
+                "x": 260.0,
+                "y": 689.0,
+                "width": 200.0,
+                "height": 68.0
               }
             ],
             "children": []
@@ -144,67 +108,23 @@
       },
       {
         "name": "MCCB-03",
-        "x": 614.36,
-        "y": 174.83,
+        "x": 652.0,
+        "y": 223.0,
         "width": 280.0,
         "height": 120.0,
         "safety_factor": 1.25,
+        "breaker_type": "MCCB",
         "is_top_level": false,
         "loads": [
           {
             "part_no": "MTR-001",
             "quantity": 1,
-            "x": 613.99,
-            "y": 318.03,
+            "x": 699.0,
+            "y": 376.0,
             "width": 200.0,
             "height": 68.0
           }
         ],
-        "children": [
-          {
-            "name": "CP02",
-            "x": 589.65,
-            "y": 425.48,
-            "width": 220.0,
-            "height": 120.0,
-            "safety_factor": 1.25,
-            "is_top_level": false,
-            "loads": [],
-            "children": []
-          }
-        ]
-      },
-      {
-        "name": "MCCB-07",
-        "x": 931.73,
-        "y": 175.71,
-        "width": 280.0,
-        "height": 120.0,
-        "safety_factor": 1.25,
-        "is_top_level": false,
-        "loads": [],
-        "children": []
-      },
-      {
-        "name": "MCCB-08",
-        "x": 1256.73,
-        "y": 175.71,
-        "width": 280.0,
-        "height": 120.0,
-        "safety_factor": 1.25,
-        "is_top_level": false,
-        "loads": [],
-        "children": []
-      },
-      {
-        "name": "MCCB-09",
-        "x": 1576.1,
-        "y": 179.46,
-        "width": 280.0,
-        "height": 120.0,
-        "safety_factor": 1.25,
-        "is_top_level": false,
-        "loads": [],
         "children": []
       }
     ]

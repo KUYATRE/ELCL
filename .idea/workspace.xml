@@ -5,9 +5,14 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="efa9899b-f7ae-4d4d-9639-28f43abeb337" name="변경" comment="New release">
+      <change afterPath="$PROJECT_DIR$/data/breaker_templates.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/styles/combo_arrow_down.svg" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data/breaker_canvas_layout.json" beforeDir="false" afterPath="$PROJECT_DIR$/data/breaker_canvas_layout.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/data/breaker_canvas_layout.xlsx" beforeDir="false" afterPath="$PROJECT_DIR$/data/breaker_canvas_layout.xlsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/data/breaker_canvas_layout.xlsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/logs/app.log" beforeDir="false" afterPath="$PROJECT_DIR$/logs/app.log" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/styles/app_style.qss" beforeDir="false" afterPath="$PROJECT_DIR$/styles/app_style.qss" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -80,7 +85,7 @@
       <updated>1775797446047</updated>
       <workItem from="1775797447078" duration="7992000" />
       <workItem from="1776035881066" duration="3447000" />
-      <workItem from="1776123211425" duration="757000" />
+      <workItem from="1776123211425" duration="6390000" />
     </task>
     <task id="LOCAL-00001" summary="New release">
       <option name="closed" value="true" />
@@ -106,7 +111,15 @@
       <option name="project" value="LOCAL" />
       <updated>1776062659884</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="New release">
+      <option name="closed" value="true" />
+      <created>1776124217200</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1776124217200</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -128,6 +141,6 @@
     <option name="LAST_COMMIT_MESSAGE" value="New release" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/ELCL$main.coverage" NAME="main 커버리지 결과" MODIFIED="1776123235781" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/ELCL$main.coverage" NAME="main 커버리지 결과" MODIFIED="1776129975871" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
