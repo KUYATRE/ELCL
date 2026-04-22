@@ -16480,3 +16480,82 @@
 2026-04-14 10:30:16,542 | DEBUG | electrical_capacity_app | __init__ | DatabaseManager init: C:\Users\h202202773\PycharmProjects\ELCL\data\parts.db
 2026-04-14 10:30:16,542 | INFO | electrical_capacity_app | _initialize | Initializing database
 2026-04-14 10:30:16,543 | INFO | electrical_capacity_app | _initialize | Database ready
+2026-04-14 10:31:19,289 | DEBUG | electrical_capacity_app | setup_logging | Logging initialized
+2026-04-14 10:31:19,388 | DEBUG | electrical_capacity_app | __init__ | DatabaseManager init: C:\Users\h202202773\PycharmProjects\ELCL\data\parts.db
+2026-04-14 10:31:19,388 | INFO | electrical_capacity_app | _initialize | Initializing database
+2026-04-14 10:31:19,389 | INFO | electrical_capacity_app | _initialize | Database ready
+2026-04-14 10:38:26,609 | DEBUG | electrical_capacity_app | setup_logging | Logging initialized
+2026-04-14 10:38:26,700 | DEBUG | electrical_capacity_app | __init__ | DatabaseManager init: C:\Users\h202202773\PycharmProjects\ELCL\data\parts.db
+2026-04-14 10:38:26,700 | INFO | electrical_capacity_app | _initialize | Initializing database
+2026-04-14 10:38:26,701 | INFO | electrical_capacity_app | _initialize | Database ready
+2026-04-14 10:38:31,373 | ERROR | electrical_capacity_app | save_canvas | Failed to save canvas
+Traceback (most recent call last):
+  File "C:\Users\h202202773\PycharmProjects\ELCL\main.py", line 1799, in save_canvas
+    self.scene.export_to_excel(CANVAS_EXPORT_PATH)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\h202202773\PycharmProjects\ELCL\main.py", line 1373, in export_to_excel
+    with pd.ExcelWriter(path, engine="openpyxl") as writer:
+         ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\h202202773\AppData\Local\Programs\Python\Python314\Lib\site-packages\pandas\io\excel\_openpyxl.py", line 61, in __init__
+    super().__init__(
+    ~~~~~~~~~~~~~~~~^
+        path,
+        ^^^^^
+    ...<3 lines>...
+        engine_kwargs=engine_kwargs,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\h202202773\AppData\Local\Programs\Python\Python314\Lib\site-packages\pandas\io\excel\_base.py", line 1246, in __init__
+    self._handles = get_handle(
+                    ~~~~~~~~~~^
+        path, mode, storage_options=storage_options, is_text=False
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\h202202773\AppData\Local\Programs\Python\Python314\Lib\site-packages\pandas\io\common.py", line 882, in get_handle
+    handle = open(handle, ioargs.mode)
+PermissionError: [Errno 13] Permission denied: 'C:\\Users\\h202202773\\PycharmProjects\\ELCL\\data\\breaker_canvas_layout.xlsx'
+2026-04-14 10:39:21,553 | DEBUG | electrical_capacity_app | setup_logging | Logging initialized
+2026-04-14 10:39:21,656 | DEBUG | electrical_capacity_app | __init__ | DatabaseManager init: C:\Users\h202202773\PycharmProjects\ELCL\data\parts.db
+2026-04-14 10:39:21,656 | INFO | electrical_capacity_app | _initialize | Initializing database
+2026-04-14 10:39:21,657 | INFO | electrical_capacity_app | _initialize | Database ready
+2026-04-14 10:54:28,924 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-001 / Main Motor
+2026-04-14 10:54:28,933 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-002 / Main Motor
+2026-04-14 10:54:28,941 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-003 / Main Motor
+2026-04-14 10:54:28,949 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-004 / Main Motor
+2026-04-14 10:54:28,957 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-005 / Main Motor
+2026-04-14 10:54:28,965 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-006 / Main Motor
+2026-04-14 10:54:28,972 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-007 / Main Motor
+2026-04-14 10:54:28,981 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-008 / Main Motor
+2026-04-14 10:54:28,988 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-009 / Main Motor
+2026-04-14 10:54:28,996 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-010 / Main Motor
+2026-04-14 10:54:29,003 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-011 / Main Motor
+2026-04-14 10:54:29,010 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-012 / Main Motor
+2026-04-14 10:54:29,017 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-013 / Main Motor
+2026-04-14 10:54:29,024 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-014 / Main Motor
+2026-04-14 10:54:29,031 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-015 / Main Motor
+2026-04-14 10:54:29,038 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-016 / Main Motor
+2026-04-14 10:54:29,045 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-017 / Main Motor
+2026-04-14 10:54:29,053 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-018 / Main Motor
+2026-04-14 10:54:29,059 | INFO | electrical_capacity_app | upsert_part | Upserting part: MTR-019 / Main Motor
+2026-04-14 10:58:30,871 | DEBUG | electrical_capacity_app | setup_logging | Logging initialized
+2026-04-14 10:58:30,976 | DEBUG | electrical_capacity_app | __init__ | DatabaseManager init: C:\Users\h202202773\PycharmProjects\ELCL\data\parts.db
+2026-04-14 10:58:30,977 | INFO | electrical_capacity_app | _initialize | Initializing database
+2026-04-14 10:58:30,978 | INFO | electrical_capacity_app | _initialize | Database ready
+2026-04-14 11:01:45,964 | DEBUG | electrical_capacity_app | setup_logging | Logging initialized
+2026-04-14 11:01:46,071 | DEBUG | electrical_capacity_app | __init__ | DatabaseManager init: C:\Users\h202202773\PycharmProjects\ELCL\data\parts.db
+2026-04-14 11:01:46,071 | INFO | electrical_capacity_app | _initialize | Initializing database
+2026-04-14 11:01:46,072 | INFO | electrical_capacity_app | _initialize | Database ready
+2026-04-14 11:04:01,759 | DEBUG | electrical_capacity_app | setup_logging | Logging initialized
+2026-04-14 11:04:01,854 | DEBUG | electrical_capacity_app | __init__ | DatabaseManager init: C:\Users\h202202773\PycharmProjects\ELCL\data\parts.db
+2026-04-14 11:04:01,855 | INFO | electrical_capacity_app | _initialize | Initializing database
+2026-04-14 11:04:01,855 | INFO | electrical_capacity_app | _initialize | Database ready
+2026-04-14 11:06:46,179 | DEBUG | electrical_capacity_app | setup_logging | Logging initialized
+2026-04-14 11:06:46,289 | DEBUG | electrical_capacity_app | __init__ | DatabaseManager init: C:\Users\h202202773\PycharmProjects\ELCL\data\parts.db
+2026-04-14 11:06:46,289 | INFO | electrical_capacity_app | _initialize | Initializing database
+2026-04-14 11:06:46,290 | INFO | electrical_capacity_app | _initialize | Database ready
+2026-04-14 11:08:55,779 | DEBUG | electrical_capacity_app | setup_logging | Logging initialized
+2026-04-14 11:08:55,885 | DEBUG | electrical_capacity_app | __init__ | DatabaseManager init: C:\Users\h202202773\PycharmProjects\ELCL\data\parts.db
+2026-04-14 11:08:55,885 | INFO | electrical_capacity_app | _initialize | Initializing database
+2026-04-14 11:08:55,886 | INFO | electrical_capacity_app | _initialize | Database ready

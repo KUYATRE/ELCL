@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List, Optional, Set
 
 import pandas as pd
-
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from PySide6.QtCore import Qt, QPointF, Signal, QMimeData, QRectF
 from PySide6.QtGui import QAction, QColor, QBrush, QPen, QDrag, QPainter, QWheelEvent
 from PySide6.QtWidgets import (
@@ -91,6 +91,15 @@ def setup_logging() -> logging.Logger:
 
 logger = setup_logging()
 
+
+def apply_card_shadow(widget: QWidget):
+    effect = QGraphicsDropShadowEffect(widget)
+    effect.setBlurRadius(14)
+    effect.setOffset(0, 2)
+    effect.setColor(QColor(15, 23, 42, 32))
+    widget.setGraphicsEffect(effect)
+
+
 DEFAULT_BREAKER_TEMPLATES = [
     {"label": "ELCB", "prefix": "ELCB"},
     {"label": "MCCB", "prefix": "MCCB"},
@@ -122,15 +131,6 @@ def save_breaker_templates(templates: List[dict]):
         if prefix:
             payload.append({"label": label or prefix, "prefix": prefix})
     BREAKER_TEMPLATE_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def apply_card_shadow(widget: QWidget, blur: int = 18, y_offset: int = 3, alpha: int = 34):
-    effect = QGraphicsDropShadowEffect(widget)
-    effect.setBlurRadius(blur)
-    effect.setOffset(0, y_offset)
-    effect.setColor(QColor(15, 23, 42, alpha))
-    widget.setGraphicsEffect(effect)
-
 
 
 # ------------------------------------------------------------
@@ -409,6 +409,7 @@ class PartsTab(QWidget):
             form_layout.addWidget(widget, row * 2 + 1, col)
 
         form_group.setLayout(form_layout)
+        apply_card_shadow(form_group)
 
         button_row = QHBoxLayout()
         self.save_btn = QPushButton("파트 저장")
@@ -431,13 +432,11 @@ class PartsTab(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
+        apply_card_shadow(self.table)
 
         layout.addWidget(form_group)
         layout.addLayout(button_row)
         layout.addWidget(self.table)
-
-        apply_card_shadow(form_group)
-        apply_card_shadow(self.table, blur=16, y_offset=3, alpha=30)
 
         self.save_btn.clicked.connect(self.save_part)
         self.template_btn.clicked.connect(self.download_template)
@@ -553,6 +552,7 @@ class CalcTab(QWidget):
         form.addRow("안전율", self.safety_factor_spin)
         form.addRow(self.calc_btn, self.reload_btn)
         input_group.setLayout(form)
+        apply_card_shadow(input_group)
 
         result_group = QGroupBox("계산 결과")
         result_layout = QGridLayout()
@@ -570,13 +570,11 @@ class CalcTab(QWidget):
             result_layout.addWidget(title, r, c * 2)
             result_layout.addWidget(value, r, c * 2 + 1)
         result_group.setLayout(result_layout)
+        apply_card_shadow(result_group)
 
         layout.addWidget(input_group)
         layout.addWidget(result_group)
         layout.addStretch()
-
-        apply_card_shadow(input_group)
-        apply_card_shadow(result_group)
 
         self.calc_btn.clicked.connect(self.run_calculation)
         self.reload_btn.clicked.connect(self.reload_part_numbers)
@@ -610,14 +608,33 @@ class DraggablePartListWidget(QListWidget):
     def __init__(self, db: DatabaseManager):
         super().__init__()
         self.db = db
+        self._all_parts: list[dict] = []
+        self._search_text = ""
         self.setDragEnabled(True)
         self.setAlternatingRowColors(True)
         self.refresh_parts()
 
     def refresh_parts(self):
-        self.clear()
         df = self.db.get_all_parts()
+        self._all_parts = []
         for _, row in df.iterrows():
+            self._all_parts.append({
+                "part_no": str(row["part_no"]),
+                "part_name": str(row["part_name"]),
+                "current_a": row["current_a"],
+                "power_w": row["power_w"],
+            })
+        self.apply_filter(self._search_text)
+
+    def apply_filter(self, search_text: str = ""):
+        self._search_text = (search_text or "").strip().lower()
+        self.clear()
+
+        for row in self._all_parts:
+            haystack = f"{row['part_no']} {row['part_name']}".lower()
+            if self._search_text and self._search_text not in haystack:
+                continue
+
             text = f"{row['part_no']} | {row['part_name']} | {row['current_a']}A | {row['power_w']}W"
             item = QListWidgetItem(text)
             item.setData(Qt.UserRole, row['part_no'])
@@ -1295,18 +1312,20 @@ class BreakerCanvasScene(QGraphicsScene):
     def export_to_excel(self, path: Path):
         breaker_rows = []
         load_rows = []
-        
-        def walk(breaker: BreakerItem, parent_name: str = ""):
+        tree_rows = []
+
+        def walk_summary(breaker: BreakerItem, parent_name: str = ""):
             breaker_rows.append({
                 "차단기 이름": breaker.name,
                 "상위 차단기": parent_name,
+                "차단기 종류": breaker.breaker_type,
                 "안전율": round(breaker.safety_factor, 2),
                 "전체 부하 수": breaker.get_total_load_count(),
                 "합계 전류(A)": round(breaker.get_total_current(), 2),
                 "합계 전력(W)": round(breaker.get_total_power(), 2),
-                "차단기 종류": breaker.breaker_type,
                 "차단기 용량(A)": breaker.suggested_breaker(),
             })
+
             for load in breaker.load_items:
                 load_rows.append({
                     "소속 차단기": breaker.name,
@@ -1318,15 +1337,157 @@ class BreakerCanvasScene(QGraphicsScene):
                     "단위 전력(W)": round(load.unit_power, 2),
                     "합산 전력(W)": round(load.unit_power * load.quantity, 2),
                 })
+
             for child in breaker.child_breakers:
-                walk(child, breaker.name)
+                walk_summary(child, breaker.name)
+
+        def walk_tree(breaker: BreakerItem, level: int = 0, parent_name: str = ""):
+            tree_rows.append({
+                "레벨": level,
+                "구분": "차단기",
+                "이름": breaker.name,
+                "상위": parent_name,
+                "차단기 종류": breaker.breaker_type,
+                "수량": 1,
+                "단위 전류(A)": "",
+                "합산 전류(A)": round(breaker.get_total_current(), 2),
+                "단위 전력(W)": "",
+                "합산 전력(W)": round(breaker.get_total_power(), 2),
+                "안전율": round(breaker.safety_factor, 2),
+                "차단기 용량(A)": breaker.suggested_breaker(),
+                "비고": "최상위 차단기" if level == 0 else "",
+            })
+
+            for child_breaker in breaker.child_breakers:
+                walk_tree(child_breaker, level + 1, breaker.name)
+
+            for load in breaker.load_items:
+                tree_rows.append({
+                    "레벨": level + 1,
+                    "구분": "부하",
+                    "이름": f"{load.part_no} / {load.part_name}",
+                    "상위": breaker.name,
+                    "차단기 종류": "",
+                    "수량": load.quantity,
+                    "단위 전류(A)": round(load.unit_current, 4),
+                    "합산 전류(A)": round(load.unit_current * load.quantity, 4),
+                    "단위 전력(W)": round(load.unit_power, 2),
+                    "합산 전력(W)": round(load.unit_power * load.quantity, 2),
+                    "안전율": "",
+                    "차단기 용량(A)": "",
+                    "비고": "",
+                })
 
         if self.top_breaker:
-            walk(self.top_breaker)
+            walk_summary(self.top_breaker)
+            walk_tree(self.top_breaker)
+
+        df_tree = pd.DataFrame(tree_rows)
+        df_breakers = pd.DataFrame(breaker_rows)
+        df_loads = pd.DataFrame(load_rows)
 
         with pd.ExcelWriter(path, engine="openpyxl") as writer:
-            pd.DataFrame(breaker_rows).to_excel(writer, sheet_name="차단기요약", index=False)
-            pd.DataFrame(load_rows).to_excel(writer, sheet_name="하위부하상세", index=False)
+            df_tree.to_excel(writer, sheet_name="트리구조", index=False)
+            df_breakers.to_excel(writer, sheet_name="차단기요약", index=False)
+            df_loads.to_excel(writer, sheet_name="하위부하상세", index=False)
+
+            wb = writer.book
+            thin = Side(style="thin", color="D1D5DB")
+
+            # -----------------------------
+            # 공통 시트 스타일 함수
+            # -----------------------------
+            def style_sheet(ws):
+                header_fill = PatternFill("solid", fgColor="DCE6F8")
+                header_font = Font(bold=True, color="1F2937")
+                center_align = Alignment(horizontal="center", vertical="center")
+                border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+                for cell in ws[1]:
+                    cell.fill = header_fill
+                    cell.font = header_font
+                    cell.alignment = center_align
+                    cell.border = border
+
+                for row in ws.iter_rows(min_row=2):
+                    for cell in row:
+                        cell.border = border
+                        if isinstance(cell.value, (int, float)):
+                            cell.alignment = Alignment(horizontal="right", vertical="center")
+                        else:
+                            cell.alignment = Alignment(vertical="center")
+
+                ws.freeze_panes = "A2"
+                ws.auto_filter.ref = ws.dimensions
+
+                for column_cells in ws.columns:
+                    max_len = 0
+                    col_letter = column_cells[0].column_letter
+                    for cell in column_cells:
+                        val = "" if cell.value is None else str(cell.value)
+                        max_len = max(max_len, len(val))
+                    ws.column_dimensions[col_letter].width = min(max_len + 3, 32)
+
+            # -----------------------------
+            # 트리구조 시트 스타일
+            # -----------------------------
+            ws_tree = writer.sheets["트리구조"]
+            style_sheet(ws_tree)
+
+            breaker_fill = PatternFill("solid", fgColor="EEF4FF")
+            load_fill = PatternFill("solid", fgColor="FFF8EF")
+            top_fill = PatternFill("solid", fgColor="DCEBFF")
+
+            name_col_idx = None
+            level_col_idx = None
+            kind_col_idx = None
+
+            headers = [cell.value for cell in ws_tree[1]]
+            for i, header in enumerate(headers, start=1):
+                if header == "이름":
+                    name_col_idx = i
+                elif header == "레벨":
+                    level_col_idx = i
+                elif header == "구분":
+                    kind_col_idx = i
+
+            for row_idx in range(2, ws_tree.max_row + 1):
+                level_val = ws_tree.cell(row=row_idx, column=level_col_idx).value
+                kind_val = ws_tree.cell(row=row_idx, column=kind_col_idx).value
+
+                row_fill = breaker_fill if kind_val == "차단기" else load_fill
+                if kind_val == "차단기" and level_val == 0:
+                    row_fill = top_fill
+
+                for col_idx in range(1, ws_tree.max_column + 1):
+                    cell = ws_tree.cell(row=row_idx, column=col_idx)
+                    cell.fill = row_fill
+
+                name_cell = ws_tree.cell(row=row_idx, column=name_col_idx)
+                name_cell.alignment = Alignment(
+                    horizontal="left",
+                    vertical="center",
+                    indent=int(level_val) * 2 if level_val is not None else 0
+                )
+
+                if kind_val == "차단기":
+                    name_cell.font = Font(bold=True, color="1E3A8A")
+                else:
+                    name_cell.font = Font(color="7C2D12")
+
+            ws_tree.column_dimensions["A"].width = 8  # 레벨
+            ws_tree.column_dimensions["B"].width = 10  # 구분
+            ws_tree.column_dimensions["C"].width = 40  # 이름
+            ws_tree.column_dimensions["D"].width = 24  # 상위
+
+            # -----------------------------
+            # 차단기요약 / 하위부하상세 시트 스타일
+            # -----------------------------
+            ws_breakers = writer.sheets["차단기요약"]
+            ws_loads = writer.sheets["하위부하상세"]
+
+            style_sheet(ws_breakers)
+            style_sheet(ws_loads)
 
     def _restore_breaker_tree(self, data: dict, parent: Optional[BreakerItem] = None):
         breaker = BreakerItem(
@@ -1452,7 +1613,11 @@ class CanvasTab(QWidget):
         self.refresh_summary_table()
 
     def _apply_widget_shadow(self, widget: QWidget):
-        apply_card_shadow(widget, blur=14, y_offset=2, alpha=32)
+        effect = QGraphicsDropShadowEffect(widget)
+        effect.setBlurRadius(14)
+        effect.setOffset(0, 2)
+        effect.setColor(QColor(15, 23, 42, 32))
+        widget.setGraphicsEffect(effect)
 
     def _build_ui(self):
         root = QVBoxLayout(self)
@@ -1520,9 +1685,12 @@ class CanvasTab(QWidget):
         lib_layout = QVBoxLayout()
         lib_layout.setContentsMargins(10, 12, 10, 10)
         lib_layout.setSpacing(8)
+        self.part_search_edit = QLineEdit()
+        self.part_search_edit.setPlaceholderText("Part No 또는 Part Name 검색")
         self.part_list = DraggablePartListWidget(self.db)
         self.part_list.setMinimumWidth(280)
         lib_layout.addWidget(QLabel("파트를 드래그해서 차단기 위에 놓으면 하위 부하로 추가됩니다."))
+        lib_layout.addWidget(self.part_search_edit)
         lib_layout.addWidget(self.part_list)
         lib_group.setLayout(lib_layout)
 
@@ -1579,6 +1747,7 @@ class CanvasTab(QWidget):
         self.toggle_templates_btn.clicked.connect(lambda: self.toggle_side_panel(self.breaker_group, self.toggle_templates_btn, "템플릿"))
         self.toggle_summary_btn.clicked.connect(lambda: self.toggle_side_panel(self.summary_group, self.toggle_summary_btn, "요약"))
         self.add_template_btn.clicked.connect(self.add_breaker_template)
+        self.part_search_edit.textChanged.connect(self.on_part_search_changed)
         self.scene.layoutChanged.connect(self.refresh_summary_table)
         self.summary_table.itemChanged.connect(self.on_summary_item_changed)
 
@@ -1641,8 +1810,12 @@ class CanvasTab(QWidget):
 
     def reload_library(self):
         self.part_list.refresh_parts()
+        self.part_list.apply_filter(self.part_search_edit.text())
         self.breaker_templates = load_breaker_templates()
         self.breaker_template_list.refresh_templates(self.breaker_templates)
+
+    def on_part_search_changed(self, text: str):
+        self.part_list.apply_filter(text)
 
     def add_top_breaker(self):
         breaker_type = self.main_breaker_type_combo.currentText()
